@@ -113,16 +113,13 @@ def get_temp_color(max_temp):
     elif max_temp <= 20: return [51, 193, 255]
     else: return [117, 255, 51]
 
-# --- 爬蟲函數 (已修復 SSL 問題) ---
+# --- 爬蟲函數 (SSL Fix) ---
 @st.cache_data(ttl=3600)
 def fetch_and_save_weather():
     url = "https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/F-A0010-001?Authorization=CWA-8DF0B9F0-1AC6-49DC-A5AD-932F40640F03&downloadType=WEB&format=JSON"
     
     try:
-        # [FIX] 抑制 InsecureRequestWarning 警告
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        
-        # [FIX] 加入 verify=False 略過 SSL 驗證
         response = requests.get(url, verify=False)
         response.raise_for_status()
         data = response.json()
@@ -195,6 +192,7 @@ with tab1:
     else:
         st.warning("目前沒有資料，請檢查網路連線。")
 
+# --- Tab 2: 地圖模式區 (修改樣式) ---
 with tab2:
     st.header("🗺️ 全台氣溫分佈圖")
     if api_data:
@@ -217,6 +215,7 @@ with tab2:
         if map_rows:
             df_map_final = pd.DataFrame(map_rows)
             view_state = pdk.ViewState(latitude=23.6, longitude=120.9, zoom=6.8, pitch=0)
+            
             layer = pdk.Layer(
                 "ScatterplotLayer",
                 df_map_final,
@@ -230,11 +229,20 @@ with tab2:
                 line_width_min_pixels=1,
                 line_color=[255, 255, 255]
             )
+            
             tooltip = {
                 "html": "<b>{顯示名稱}</b> ({地區})<br/>氣溫: {最低溫}°C - {最高溫}°C<br/>天氣: {天氣概況}",
                 "style": {"backgroundColor": "steelblue", "color": "white"}
             }
-            r = pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip=tooltip, map_style="mapbox://styles/mapbox/light-v9")
+            
+            # [FIX] 使用 CARTO 的開源樣式 URL，不需要 Mapbox Token
+            # 原本的 mapbox://styles/mapbox/light-v9 需要金鑰
+            r = pdk.Deck(
+                layers=[layer],
+                initial_view_state=view_state,
+                tooltip=tooltip,
+                map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
+            )
             st.pydeck_chart(r)
             st.markdown("""<div style="display: flex; gap: 15px; justify-content: center; margin-top: 10px;"><div><span style="color:rgb(255, 87, 51);">●</span> 高溫 (>30°C)</div><div><span style="color:rgb(117, 255, 51);">●</span> 舒適 (20-30°C)</div><div><span style="color:rgb(51, 193, 255);">●</span> 低溫 (<20°C)</div></div>""", unsafe_allow_html=True)
         else:
